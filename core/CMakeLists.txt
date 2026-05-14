@@ -178,7 +178,7 @@ endif()
 
 # macOS flags
 if (IPL_OS_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64")
+    # Don't force universal binary - use the host architecture
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13")
     add_compile_options(-Wno-extern-c-compat) # Suppress warning about empty API structs.
     add_compile_options(-Wno-unknown-attributes) # Suppress warning in FlatBuffers.
@@ -246,6 +246,7 @@ if (NOT FFT_LIBRARY)
     set(PFFFT_USE_BENCH_KISS OFF CACHE BOOL "")
     set(PFFFT_USE_BENCH_POCKET OFF CACHE BOOL "")
     set(PFFFT_USE_FFTPACK OFF CACHE BOOL "")
+    set(INSTALL_PFFFT OFF CACHE BOOL "")
     add_subdirectory(deps/pffft EXCLUDE_FROM_ALL)
     set(FFT_LIBRARY PFFFT)
 endif()
@@ -258,19 +259,24 @@ if (STEAMAUDIO_ENABLE_MKL)
     endif()
 endif()
 
-add_subdirectory(deps/zlib EXCLUDE_FROM_ALL)
-set(ZLIB_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/deps/zlib;${PROJECT_BINARY_DIR}/deps/zlib" CACHE STRING "")
+# Skip building zlib - use the project's zlib module (Modules/zlib) which provides
+# zlibstatic target. We only need headers for mysofa compilation.
+set(ZLIB_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/deps/zlib" CACHE STRING "" FORCE)
 
-add_library(MySOFA::zlib IMPORTED INTERFACE)
-set_target_properties(MySOFA::zlib PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
-  INTERFACE_LINK_LIBRARIES zlibstatic)
+if(NOT TARGET MySOFA::zlib)
+  add_library(MySOFA::zlib IMPORTED INTERFACE)
+  set_target_properties(MySOFA::zlib PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES zlibstatic)
+endif()
 
 set(ZLIB_LIBRARIES MySOFA::zlib CACHE STRING "")
 
 set(BUILD_TESTS OFF CACHE BOOL "")
-add_subdirectory(deps/mysofa EXCLUDE_FROM_ALL)
-target_compile_definitions(mysofa-static PUBLIC MYSOFA_STATIC)
+if(NOT TARGET mysofa-static)
+  add_subdirectory(deps/mysofa EXCLUDE_FROM_ALL)
+  target_compile_definitions(mysofa-static PUBLIC MYSOFA_STATIC)
+endif()
 
 if (STEAMAUDIO_ENABLE_SERIALIZATION)
     find_package(FlatBuffers REQUIRED)
